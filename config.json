@@ -1,0 +1,9 @@
+{
+    "features": {
+        "hotkey_enabled": false,
+        "images_enabled": true
+    },
+    "settings": {
+        "table_width": 225
+    }
+}
