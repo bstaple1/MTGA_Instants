@@ -700,12 +700,12 @@ class WindowUI:
                         tooltip = CreateCardToolTip(table, event,
                                                            card["image"],
                                                            True,
-                                                           "PC")
+                                                           self.os)
                     except Exception as error:
                         tooltip = CreateCardToolTip(table, event,
                                                            card["image"],
                                                            True,
-                                                           "PC")
+                                                           self.os)
                     break
                     
     def UpdateUI(self):
