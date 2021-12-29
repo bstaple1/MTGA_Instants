@@ -314,9 +314,44 @@ class LogScanner:
         self.land_permutations = []
         self.diag_enabled = False
         self.previous_turn = 1
+        self.user_offset = 0
+        self.user_name = ""
+        self.seat_offset = 0
+        self.opponent_seat = 0
         self.diag_log_file = "Instants_Log_%u.log" % (int(time.time()))
+        self.IdentifyPlayerSeat()
         self.LandSearch()
-        
+
+    def IdentifyPlayerSeat(self):
+        search_string_user = "[Accounts - Login] Logged in successfully. Display Name: "
+        search_string_seat = "playerName"
+
+        with open(self.log_file, 'r', errors="ignore") as log:
+            #Identify user's name 
+            log.seek(self.user_offset)
+            for line in log:
+                self.user_offset += len(line)
+                
+                string_offset = line.find(search_string_user)
+                if string_offset != -1:
+                    string_offset += len(search_string_user)
+                    self.user_name = line[string_offset:-1]
+
+            #Identify opponent's seat
+            log.seek(self.seat_offset)
+            for line in log:
+                self.seat_offset += len(line)
+
+                string_offset = line.find(search_string_seat)
+                if string_offset != -1:
+                    event_data = json.loads(line)
+                    players = event_data["matchGameRoomStateChangedEvent"]["gameRoomInfo"]["gameRoomConfig"]["reservedPlayers"]
+                    for player in players:
+                        if player["playerName"] != self.user_name:
+                            self.opponent_seat = player["systemSeatId"]
+
+            print("Opponent's Seat: %u" % self.opponent_seat)
+
     def LandSearch(self):
         land_permutations = self.land_permutations
         offset = self.offset
@@ -340,7 +375,7 @@ class LogScanner:
                                 current_turn = turn_info["turnNumber"]
                                 active_player = turn_info["activePlayer"]
                                 if (current_turn != self.previous_turn):
-                                    if (current_turn > self.previous_turn) and (active_player == 2):
+                                    if (current_turn > self.previous_turn) and (active_player == self.opponent_seat):
                                         self.tapped_lands = []
                                     elif current_turn < self.previous_turn:
                                         self.tapped_lands = []
@@ -387,7 +422,7 @@ class LogScanner:
         land_subtypes = {"SubType_Forest" : "G", "SubType_Swamp" : "B", "SubType_Island" : "U", "SubType_Mountain" : "R", "SubType_Plains" : "W"}
         LogEntry(self.diag_log_file, str(game_object), self.diag_enabled)
         try:
-            if (game_object["ownerSeatId"] == 2) and (game_object["visibility"] == "Visibility_Public"):
+            if (game_object["ownerSeatId"] == self.opponent_seat) and (game_object["visibility"] == "Visibility_Public"):
                 instance_id = game_object["instanceId"]
                 if "CardType_Land" in game_object["cardTypes"]:
                     #Generic lands with no color mana
@@ -534,6 +569,7 @@ class WindowUI:
             print("UpdateOptions Error: %s" % error) 
             
     def UpdateCallback(self, *args):
+        self.player_log.IdentifyPlayerSeat()
         land_permutations = self.player_log.LandSearch()
         
         if len(self.set_options_list) == 0:
