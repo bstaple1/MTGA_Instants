@@ -835,7 +835,7 @@ class CreateCardToolTip(object):
             tw.destroy()            
         
 def main(argv):
-    version = 1.00
+    version = 1.01
     file_location = ""
     step_through = False
     diag_log_enabled = True
