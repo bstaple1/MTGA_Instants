@@ -55,7 +55,6 @@
 
 from tkinter import *
 from tkinter.ttk import *
-import tkinter
 import json
 import os
 import time 
@@ -312,13 +311,13 @@ class LogScanner:
         self.total_lands = {}
         self.tapped_lands = []
         self.land_permutations = []
-        self.diag_enabled = False
+        self.diag_enabled = True
         self.previous_turn = 1
         self.user_offset = 0
         self.user_name = ""
         self.seat_offset = 0
         self.opponent_seat = 0
-        self.diag_log_file = "Instants_Log_%u.log" % (int(time.time()))
+        self.diag_log_file = "Instants_Log.log" 
         self.IdentifyPlayerSeat()
         self.LandSearch()
 
@@ -336,6 +335,8 @@ class LogScanner:
                 if string_offset != -1:
                     string_offset += len(search_string_user)
                     self.user_name = line[string_offset:-1]
+                    log_string = "Player: %s" % self.user_name
+                    LogEntry(self.diag_log_file, log_string, self.diag_enabled)
 
             #Identify opponent's seat
             log.seek(self.seat_offset)
@@ -349,14 +350,15 @@ class LogScanner:
                     for player in players:
                         if player["playerName"] != self.user_name:
                             self.opponent_seat = player["systemSeatId"]
-
+                            log_string = "Opponent: %s , seat: %d" % (player["playerName"], self.opponent_seat)
+                            LogEntry(self.diag_log_file, log_string, self.diag_enabled)
             print("Opponent's Seat: %u" % self.opponent_seat)
-
+            
     def LandSearch(self):
         land_permutations = self.land_permutations
         offset = self.offset
         game_state_id = 0
-        search_string = "gameObjects"
+        search_string = "gameStateMessage"
         with open(self.log_file, 'r', errors="ignore") as log:
             log.seek(offset)
             for line in log:
@@ -372,6 +374,8 @@ class LogScanner:
                         for message in gre_to_client["greToClientMessages"]:
                             try:
                                 turn_info = message["gameStateMessage"]["turnInfo"]
+                                phase = turn_info["phase"]
+                                step = turn_info["step"] if "step" in turn_info.keys() else ""
                                 current_turn = turn_info["turnNumber"]
                                 active_player = turn_info["activePlayer"]
                                 if (current_turn != self.previous_turn):
@@ -382,12 +386,11 @@ class LogScanner:
                                         self.land_permutation = []
                                         self.total_lands = {}
                     
-                                log_string = "Current turn: %d, previous turn: %d, active player: %d" % (current_turn, self.previous_turn, active_player)
+                                log_string = "Phase: %s, Step: %s, Current turn: %d, previous turn: %d, active player: %d" % (phase, step, current_turn, self.previous_turn, active_player)
                                 LogEntry(self.diag_log_file, log_string, self.diag_enabled)
                                 self.previous_turn = current_turn
                             except Exception as error:
-                                print(error)
-                                
+                                print("turnInfo Error: %s" % error)
                             try:
                                 game_objects = message["gameStateMessage"]["gameObjects"]
                                 
@@ -408,7 +411,7 @@ class LogScanner:
                                 self.land_permutations = permutations
                                 #print(lands)
                             except Exception as error:
-                                print(error)
+                                print("Search Error: %s" % error)
 
 
                 except Exception as error:
@@ -419,37 +422,40 @@ class LogScanner:
         
         
     def LandParse(self, game_object):
-        land_subtypes = {"SubType_Forest" : "G", "SubType_Swamp" : "B", "SubType_Island" : "U", "SubType_Mountain" : "R", "SubType_Plains" : "W"}
-        LogEntry(self.diag_log_file, str(game_object), self.diag_enabled)
+        land_abilities = {1005 : "G", 1003 : "B", 1002 : "U", 1004 : "R", 1001 : "W", 1152 : "NC"}
         try:
             if (game_object["ownerSeatId"] == self.opponent_seat) and (game_object["visibility"] == "Visibility_Public"):
+                
                 instance_id = game_object["instanceId"]
-                if "CardType_Land" in game_object["cardTypes"]:
+                if "CardType_Land" in game_object["cardTypes"] and "GameObjectType_Card" in game_object["type"]:
+                    LogEntry(self.diag_log_file, str(game_object), self.diag_enabled)
                     #Generic lands with no color mana
-                    if "subtypes" not in game_object.keys():
-                        if "isTapped" not in game_object.keys():
-                            if instance_id not in self.total_lands.keys():
-                                self.total_lands[instance_id] = []
-                                
-                            if "NC" not in self.total_lands[instance_id]:
-                                self.total_lands[instance_id].append("NC")
-                        else:
-                            if instance_id in self.total_lands.keys():
-                                self.tapped_lands.append(instance_id)
-                    else:
-                        print("subtypes: %s" %(str(game_object["subtypes"])))
-                        for subtype in game_object["subtypes"]:
-                            if subtype in land_subtypes.keys():
-                                if "isTapped" not in game_object.keys():
-                                    if instance_id not in self.total_lands.keys():
-                                        self.total_lands[instance_id] = []
-                                        
-                                    if land_subtypes[subtype] not in self.total_lands[instance_id]:
-                                        self.total_lands[instance_id].append(land_subtypes[subtype])
-                                else:
-                                    if instance_id in self.total_lands.keys():
-                                        self.tapped_lands.append(instance_id)
-
+                    #if "subtypes" not in game_object.keys():
+                    #    if "isTapped" not in game_object.keys():
+                    #        if instance_id not in self.total_lands.keys():
+                    #            self.total_lands[instance_id] = []
+                    #            
+                    #        if "NC" not in self.total_lands[instance_id]:
+                    #            self.total_lands[instance_id].append("NC")
+                    #    else:
+                    #        if instance_id in self.total_lands.keys():
+                    #            self.tapped_lands.append(instance_id)
+                    #    
+                    #else:
+                    #print("subtypes: %s" %(str(game_object["subtypes"])))
+                    for ability in game_object["abilities"]:
+                        if ability in land_abilities.keys():
+                            if "isTapped" not in game_object.keys():
+                                if instance_id not in self.total_lands.keys():
+                                    self.total_lands[instance_id] = []
+                                    
+                                if land_abilities[ability] not in self.total_lands[instance_id]:
+                                    self.total_lands[instance_id].append(land_abilities[ability])
+                            else:
+                                if instance_id in self.total_lands.keys():
+                                    self.tapped_lands.append(instance_id)
+                log_string = "instance_id: %s, total_lands: %s, tapped_lands: %s" % (instance_id, str(self.total_lands), str(self.tapped_lands))
+                LogEntry(self.diag_log_file, log_string, self.diag_enabled)
         except Exception as error:
             LogEntry(self.diag_log_file, error, self.diag_enabled)
             print(error)
