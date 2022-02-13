@@ -422,7 +422,22 @@ class LogScanner:
         
         
     def LandParse(self, game_object):
-        land_abilities = {1005 : "G", 1003 : "B", 1002 : "U", 1004 : "R", 1001 : "W", 1152 : "NC"}
+        land_abilities = {1005  : "G", 
+                          1003  : "B", 
+                          1002  : "U", 
+                          1004  : "R", 
+                          1001  : "W", 
+                          1152  : "NC", 
+                          1211  : "B,R",
+                          1131  : "G,R",
+                          4407  : "B,G",
+                          4247  : "R,W",
+                          1209  : "W,U",
+                          18504 : "G,U",
+                          1039  : "U,R",
+                          1167  : "U,B",
+                          1203  : "G,W",
+                          18472 : "W,B"}
         try:
             if (game_object["ownerSeatId"] == self.opponent_seat) and (game_object["visibility"] == "Visibility_Public"):
                 
@@ -450,7 +465,8 @@ class LogScanner:
                                     self.total_lands[instance_id] = []
                                     
                                 if land_abilities[ability] not in self.total_lands[instance_id]:
-                                    self.total_lands[instance_id].append(land_abilities[ability])
+                                    split_lands = land_abilities[ability].split(",")
+                                    self.total_lands[instance_id].extend(split_lands)
                             else:
                                 if instance_id in self.total_lands.keys():
                                     self.tapped_lands.append(instance_id)
