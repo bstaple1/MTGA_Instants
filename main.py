@@ -180,7 +180,9 @@ class DataPlatform:
         for card_data in data:
             try:
                 types = ExtractTypes(card_data["type_line"])
-                if ("Instant" in types) or ("Flash" in card_data["keywords"]):
+                if ("Instant" in types) or \
+                   ("Flash" in card_data["keywords"]) or \
+                   ("Ninjutsu" in card_data["keywords"]):
                     card = {}
                     name = card_data["name"]
                     card["cmc"] = card_data["cmc"]
@@ -304,8 +306,8 @@ def LogEntry(log_name, entry_text, diag_log_enabled):
             print("LogEntry Error:  %s" % error)    
                  
 class LogScanner:
-    def __init__(self, log_file, os):
-        self.os = os
+    def __init__(self, log_file, operating_system):
+        self.operating_system = operating_system
         self.log_file = log_file
         self.offset = 0
         self.total_lands = {}
@@ -318,6 +320,14 @@ class LogScanner:
         self.seat_offset = 0
         self.opponent_seat = 0
         self.diag_log_file = "Instants_Log.log" 
+        #try:
+        #    os.remove("Instants_Log.log")
+        #except Exception as error:
+        #    print(error)
+        if os.path.exists("Instants_Log.log"):
+            os.remove("Instants_Log.log")
+        else:
+            print("The file does not exist")
         self.IdentifyPlayerSeat()
         self.LandSearch()
 
@@ -476,14 +486,14 @@ class LogScanner:
             LogEntry(self.diag_log_file, error, self.diag_enabled)
             print(error)
 class WindowUI:
-    def __init__(self, root, filename, os, images, table_width):
+    def __init__(self, root, filename, operating_system, images, table_width):
         self.root = root
         self.elevated = False
         Grid.rowconfigure(self.root, 4, weight = 1)
         
         self.filename = filename
-        self.os = os
-        self.player_log = LogScanner(self.filename, self.os)
+        self.operating_system = operating_system
+        self.player_log = LogScanner(self.filename, self.operating_system)
         self.previous_timestamp = 0
         self.previous_permutations = {}
         self.previous_set = ""
@@ -661,6 +671,23 @@ class WindowUI:
         except Exception as error:
             print("CardForetellCost Error: %s" % error)
         return mana_cost, cmc
+        
+    def CardNinjutsuCost(self, card):
+        mana_cost = ""
+        cmc = 0
+        try:
+            if "Ninjutsu" in card["keywords"]:
+                #scan the text for the foretell cost
+                search_string = "Ninjutsu {"
+                index = card["text"].find(search_string)
+                if index != -1:
+                    sections = card["text"][(index + len(search_string) - 1):].split(" ")
+                    mana_cost = sections[0]
+                    cmc = ManaCount(mana_cost)
+
+        except Exception as error:
+            print("CardNinjutsuCost Error: %s" % error)
+        return mana_cost, cmc
             
     def CardCostFilter(self, card_list, land_permutations):
         filter_dict = {}
@@ -699,6 +726,11 @@ class WindowUI:
                     if foretell_mana != "":
                         mana_cost = foretell_mana
                         cmc = foretell_cmc
+                        
+                    ninjutsu_mana, ninjutsu_cmc = self.CardNinjutsuCost(card_list[card])
+                    if ninjutsu_mana != "":
+                        mana_cost = ninjutsu_mana
+                        cmc = ninjutsu_cmc
                     while(True):
                         
                         if (cmc <= total_mana):
@@ -732,6 +764,7 @@ class WindowUI:
                     
                     if(conditions_met):
                         filter_dict[card] = card_list[card]
+                        filter_dict[card]["mana_cost"] = mana_cost
             
             except Exception as error:
                 print("CardCostFilter Error: %s" % error)
@@ -758,12 +791,12 @@ class WindowUI:
                         tooltip = CreateCardToolTip(table, event,
                                                            card["image"],
                                                            True,
-                                                           self.os)
+                                                           self.operating_system)
                     except Exception as error:
                         tooltip = CreateCardToolTip(table, event,
                                                            card["image"],
                                                            True,
-                                                           self.os)
+                                                           self.operating_system)
                     break
                     
     def UpdateUI(self):
@@ -780,12 +813,12 @@ class WindowUI:
             
         self.root.after(500, self.UpdateUI)
 class CreateCardToolTip(object):
-    def __init__(self, widget, event, image, images_enabled, os):
+    def __init__(self, widget, event, image, images_enabled, operating_system):
         self.waittime = 1     #miliseconds
         self.wraplength = 180   #pixels
         self.widget = widget
         self.image = image
-        self.os = os
+        self.operating_system = operating_system
         self.images_enabled = images_enabled
         self.widget.bind("<Leave>", self.Leave)
         self.widget.bind("<ButtonPress>", self.Leave)
@@ -821,7 +854,7 @@ class CreateCardToolTip(object):
             self.tw = Toplevel(self.widget)
             # Leaves only the label and removes the app window
             self.tw.wm_overrideredirect(True)
-            if self.os == "MAC":
+            if self.operating_system == "MAC":
                self.tw.wm_overrideredirect(False) 
             self.tw.wm_geometry("+%d+%d" % (x, y))
    
